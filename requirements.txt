@@ -1,0 +1,18 @@
+# --- API ---
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+pydantic==2.10.4
+pydantic-settings==2.7.0
+
+# --- Visão computacional / sinais (exigidos pelo rppg_pipeline.py) ---
+opencv-python==4.10.0.84
+mediapipe==0.10.30
+numpy==2.1.0
+scipy==1.14.1
+PyWavelets==1.7.0
+
+# --- Modelo (model.py) ---
+# CPU basta para inferência de 1 vídeo. Para GPU, instale a wheel CUDA
+# correspondente em https://pytorch.org/get-started/locally/
+torch==2.6.0
