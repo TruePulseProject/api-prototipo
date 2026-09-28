@@ -118,11 +118,10 @@ def normalizar_para_30fps(origem: Path, destino: Path) -> VideoInfo:
         raise VideoError("ffmpeg não encontrado no PATH.", "FFMPEG_AUSENTE")
 
     destino.parent.mkdir(parents=True, exist_ok=True)
-    cmd = [
+    base = [
         settings.ffmpeg_bin, "-y",
         "-i", str(origem),
         "-vf", f"fps={settings.target_fps},format=yuv420p",
-        "-vsync", "cfr",
         "-r", str(settings.target_fps),
         "-c:v", "libx264",
         "-preset", "veryfast",
@@ -130,14 +129,34 @@ def normalizar_para_30fps(origem: Path, destino: Path) -> VideoInfo:
                                # as micro-variações de cor que o rPPG mede
         "-an",
         "-movflags", "+faststart",
-        str(destino),
     ]
-    proc = subprocess.run(cmd, capture_output=True, text=True,
-                          timeout=settings.ffmpeg_timeout_s)
-    if proc.returncode != 0 or not destino.exists():
-        erro = (proc.stderr or "").strip().splitlines()[-5:]
+
+    # Compatibilidade entre versões/builds do FFmpeg:
+    # - alguns aceitam -vsync cfr
+    # - outros migraram para -fps_mode cfr
+    # - outros rejeitam ambos, mas ainda respeitam -vf fps + -r
+    variantes = [
+        ["-vsync", "cfr"],
+        ["-fps_mode", "cfr"],
+        [],
+    ]
+    ultimo_erro: list[str] = []
+
+    for flags in variantes:
+        cmd = [*base, *flags, str(destino)]
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=settings.ffmpeg_timeout_s,
+        )
+        if proc.returncode == 0 and destino.exists():
+            break
+        ultimo_erro = (proc.stderr or "").strip().splitlines()[-5:]
+        destino.unlink(missing_ok=True)
+    else:
         raise VideoError(
-            "Falha ao normalizar o vídeo para 30 FPS: " + " | ".join(erro),
+            "Falha ao normalizar o vídeo para 30 FPS: " + " | ".join(ultimo_erro),
             "FALHA_FFMPEG")
 
     info = probe(destino)
