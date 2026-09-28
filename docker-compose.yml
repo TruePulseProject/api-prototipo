@@ -1,0 +1,12 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./storage:/srv/storage
+      - ./models:/srv/models
+    environment:
+      TRUEPULSE_JWT_SECRET: "troque-este-segredo-em-producao"
+      TRUEPULSE_DEEPFAKE_THRESHOLD_PCT: "50"
+    restart: unless-stopped
