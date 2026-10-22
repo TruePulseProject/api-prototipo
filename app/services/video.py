@@ -59,6 +59,34 @@ def _parse_fraction(valor: str | None) -> float:
         return 0.0
 
 
+def _duracao_por_pacotes(path: Path, fps: float) -> float:
+    """Calcula a duração pelos timestamps dos pacotes de vídeo.
+
+    WebM gravado em streaming (MediaRecorder do navegador, alguns apps
+    mobile) não grava a duração no cabeçalho, e o ffprobe devolve vazio.
+    Nesse caso a duração é o último PTS + a duração de um frame.
+    """
+    cmd = [
+        settings.ffprobe_bin, "-v", "error",
+        "-select_streams", "v:0",
+        "-show_entries", "packet=pts_time",
+        "-of", "csv=p=0", str(path),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    if proc.returncode != 0:
+        return 0.0
+    tempos = []
+    for linha in proc.stdout.splitlines():
+        try:
+            tempos.append(float(linha.strip().rstrip(",")))
+        except ValueError:
+            continue
+    if not tempos:
+        return 0.0
+    frame = 1.0 / fps if fps > 0 else 0.0
+    return max(tempos) - min(tempos) + frame
+
+
 def probe(path: Path) -> VideoInfo:
     """Lê metadados do vídeo com ffprobe."""
     if not shutil.which(settings.ffprobe_bin):
@@ -85,6 +113,8 @@ def probe(path: Path) -> VideoInfo:
     s = streams[0]
     duracao = float(s.get("duration") or data.get("format", {}).get("duration") or 0.0)
     fps = _parse_fraction(s.get("avg_frame_rate")) or _parse_fraction(s.get("r_frame_rate"))
+    if duracao <= 0:
+        duracao = _duracao_por_pacotes(path, fps)
     return VideoInfo(
         duracao_s=duracao,
         fps=fps,
